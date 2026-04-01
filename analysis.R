@@ -17,6 +17,13 @@ library(pROC)           # ROC curve analysis
 
 set.seed(42)            # Reproducibility
 
+# Resolve the project directory whether the script is sourced from RStudio or
+# run from the command line.
+script_file <- commandArgs(trailingOnly = FALSE)
+script_file <- script_file[grepl("--file=", script_file)]
+script_path <- if (length(script_file) > 0) sub("^--file=", "", script_file[1]) else getwd()
+base_dir <- if (file.exists(script_path)) normalizePath(dirname(script_path)) else normalizePath(getwd())
+
 # =============================================================================
 # 2. DATASET DESCRIPTION
 # =============================================================================
@@ -74,7 +81,7 @@ if (is.null(heart_raw)) {
     oldpeak  = pmax(0, round(rnorm(n, 1.04, 1.16), 1)),
     slope    = sample(0:2, n, replace=TRUE, prob=c(0.07,0.46,0.47)),
     ca       = sample(0:3, n, replace=TRUE, prob=c(0.59,0.21,0.13,0.07)),
-    thal     = sample(c(1,2,3), n, replace=TRUE, prob=c(0.05,0.38,0.57)),
+    thal     = sample(c(3,6,7), n, replace=TRUE, prob=c(0.05,0.38,0.57)),
     target   = sample(0:1, n, replace=TRUE, prob=c(0.46, 0.54))
   )
   # Inject 6 missing values (mirrors real dataset)
@@ -117,14 +124,15 @@ heart <- heart %>%
     restecg = factor(restecg, levels=0:2, labels=c("Normal","ST-T abnorm","LV hypertrophy")),
     exang   = factor(exang,   levels=0:1, labels=c("No","Yes")),
     slope   = factor(slope,   levels=0:2, labels=c("Upsloping","Flat","Downsloping")),
-    thal    = factor(thal,    levels=c(1,2,3), labels=c("Normal","Fixed","Reversible")),
-    target  = factor(target,  levels=0:1, labels=c("No Disease","Disease"))
+    thal    = factor(thal,    levels=c(3,6,7), labels=c("Normal","Fixed","Reversible")),
+    target  = factor(target,  levels=0:1, labels=c("No_Disease","Disease"))
   )
 
 # 4e. Scale numeric features (Z-score normalisation)
 numeric_cols <- c("age","trestbps","chol","thalach","oldpeak")
 preproc_obj  <- preProcess(heart[, numeric_cols], method = c("center","scale"))
 heart_scaled <- predict(preproc_obj, heart)
+heart_scaled <- heart_scaled %>% drop_na()
 
 cat("\n✓ Preprocessing complete. Final dimensions:", nrow(heart_scaled), "×", ncol(heart_scaled), "\n")
 cat("  Target distribution:\n")
@@ -199,7 +207,7 @@ p6 <- ggplot(heart, aes(oldpeak, fill=target)) +
 
 # Save EDA grid
 eda_grid <- arrangeGrob(p1, p2, p3, p4, p5, p6, ncol=2)
-ggsave("/home/claude/heart_disease_ml/eda_plots.png", eda_grid,
+ggsave(file.path(base_dir, "eda_plots.png"), eda_grid,
        width=14, height=18, dpi=150)
 cat("✓ EDA plots saved\n")
 
@@ -212,7 +220,7 @@ num_df <- heart %>%
   select(age, trestbps, chol, thalach, oldpeak, ca, target_num) %>%
   rename(target=target_num)
 
-png("/home/claude/heart_disease_ml/correlation.png", width=900, height=800, res=120)
+png(file.path(base_dir, "correlation.png"), width=900, height=800, res=120)
 corrplot(cor(num_df), method="color", type="upper", addCoef.col="black",
          tl.col="black", tl.srt=45, col=colorRampPalette(c("#3498db","white","#e74c3c"))(200),
          title="Correlation Matrix", mar=c(0,0,2,0))
@@ -284,8 +292,8 @@ rf_cm <- confusionMatrix(rf_pred_class, test_df$target, positive="Disease")
 lr_cm <- confusionMatrix(lr_pred_class, test_df$target, positive="Disease")
 
 # ROC
-rf_roc <- roc(test_df$target, rf_pred_prob, levels=c("No Disease","Disease"))
-lr_roc <- roc(test_df$target, lr_pred_prob, levels=c("No Disease","Disease"))
+rf_roc <- roc(test_df$target, rf_pred_prob, levels=c("No_Disease","Disease"))
+lr_roc <- roc(test_df$target, lr_pred_prob, levels=c("No_Disease","Disease"))
 
 cat("\n═══════════════════════════════════════════════\n")
 cat("  MODEL EVALUATION RESULTS\n")
@@ -318,12 +326,12 @@ p_imp <- ggplot(imp_df, aes(reorder(Feature, Overall), Overall, fill=Overall)) +
        x=NULL, y="Importance") +
   theme_heart
 
-ggsave("/home/claude/heart_disease_ml/feature_importance.png", p_imp,
+ggsave(file.path(base_dir, "feature_importance.png"), p_imp,
        width=9, height=6, dpi=150)
 cat("\n✓ Feature importance plot saved\n")
 
 # Save ROC comparison
-png("/home/claude/heart_disease_ml/roc_curves.png", width=800, height=650, res=120)
+png(file.path(base_dir, "roc_curves.png"), width=800, height=650, res=120)
 plot(rf_roc, col="#c0392b", lwd=2.5, main="ROC Curves – Model Comparison")
 lines(lr_roc, col="#2980b9", lwd=2.5, lty=2)
 legend("bottomright",
@@ -336,11 +344,11 @@ cat("✓ ROC curves plot saved\n")
 # =============================================================================
 # 8. SAVE ARTEFACTS FOR SHINY DASHBOARD
 # =============================================================================
-saveRDS(rf_model,    "/home/claude/heart_disease_ml/rf_model.rds")
-saveRDS(preproc_obj, "/home/claude/heart_disease_ml/preproc_obj.rds")
-saveRDS(heart,       "/home/claude/heart_disease_ml/heart_clean.rds")
-saveRDS(rf_cm,       "/home/claude/heart_disease_ml/rf_cm.rds")
-saveRDS(lr_cm,       "/home/claude/heart_disease_ml/lr_cm.rds")
+saveRDS(rf_model,    file.path(base_dir, "rf_model.rds"))
+saveRDS(preproc_obj, file.path(base_dir, "preproc_obj.rds"))
+saveRDS(heart,       file.path(base_dir, "heart_clean.rds"))
+saveRDS(rf_cm,       file.path(base_dir, "rf_cm.rds"))
+saveRDS(lr_cm,       file.path(base_dir, "lr_cm.rds"))
 
 metrics_list <- list(
   rf = list(
@@ -358,7 +366,7 @@ metrics_list <- list(
     auc       = as.numeric(auc(lr_roc))
   )
 )
-saveRDS(metrics_list, "/home/claude/heart_disease_ml/metrics_list.rds")
+saveRDS(metrics_list, file.path(base_dir, "metrics_list.rds"))
 
 cat("\n✓ All model artefacts saved.\n")
 cat("✓ analysis.R complete – run app.R to launch the Shiny dashboard.\n")

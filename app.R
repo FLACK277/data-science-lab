@@ -14,7 +14,10 @@ library(DT)
 library(plotly)
 
 # ── Load pre-computed artefacts ───────────────────────────────────────────────
-base_dir    <- dirname(rstudioapi::getSourceEditorContext()$path)
+script_file <- commandArgs(trailingOnly = FALSE)
+script_file <- script_file[grepl("--file=", script_file)]
+script_path <- if (length(script_file) > 0) sub("^--file=", "", script_file[1]) else "app.R"
+base_dir <- if (file.exists(script_path)) normalizePath(dirname(script_path)) else normalizePath(getwd())
 rf_model    <- readRDS(file.path(base_dir, "rf_model.rds"))
 preproc_obj <- readRDS(file.path(base_dir, "preproc_obj.rds"))
 heart       <- readRDS(file.path(base_dir, "heart_clean.rds"))
@@ -333,7 +336,7 @@ server <- function(input, output, session) {
     list(
       class    = as.character(pred_class),
       prob_dis = pred_prob[1, "Disease"],
-      prob_no  = pred_prob[1, "No Disease"]
+      prob_no  = pred_prob[1, "No_Disease"]
     )
   })
 
@@ -416,7 +419,7 @@ server <- function(input, output, session) {
               class     = "stripe hover compact") %>%
       formatStyle("target",
                   backgroundColor = styleEqual(
-                    c("No Disease","Disease"), c("#d5f5e3","#fadbd8")))
+                    c("No_Disease","Disease"), c("#d5f5e3","#fadbd8")))
   })
 }
 
