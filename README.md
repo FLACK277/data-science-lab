@@ -108,3 +108,61 @@ Open the URL printed in the console (typically `http://127.0.0.1:XXXX`).
 
 - R ≥ 4.2.0
 - Internet access (for dataset download; synthetic fallback available offline)
+
+---
+
+## Deploying This App
+
+### Important: Vercel limitation
+
+This project is an **R Shiny server app**. Vercel does not provide an R/Shiny runtime,
+so direct deployment to Vercel will fail.
+
+### Recommended deployment (Render / Railway / Fly.io)
+
+This repo now includes a `Dockerfile` so you can deploy as a container.
+
+1. Push your repo to GitHub
+2. On Render/Railway/Fly.io, create a new service from this repo
+3. Select **Docker** deployment
+4. Expose port `3838`
+5. Deploy
+
+The app starts with:
+
+```bash
+R -q -e "shiny::runApp('/app', host='0.0.0.0', port=3838)"
+```
+
+### Local Docker test
+
+```bash
+docker build -t heart-disease-shiny .
+docker run --rm -p 3838:3838 heart-disease-shiny
+```
+
+Then open `http://127.0.0.1:3838`.
+
+### Alternative: Deploy to shinyapps.io
+
+This platform is purpose-built for R Shiny and is the fastest managed option.
+
+1. Create an account on shinyapps.io
+2. In shinyapps.io, open Account -> Tokens and create a new token
+3. Copy `.Renviron.example` to `.Renviron` and fill in your values
+4. Load the variables in your shell and run the deploy script
+
+```bash
+set -a
+source .Renviron
+set +a
+Rscript deploy_shinyapps.R
+```
+
+The deploy script uses:
+
+- `SHINYAPPS_NAME`
+- `SHINYAPPS_TOKEN`
+- `SHINYAPPS_SECRET`
+
+and deploys this repo as app name `heart-disease-ml-shiny`.
