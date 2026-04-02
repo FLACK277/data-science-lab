@@ -1,63 +1,29 @@
-# =============================================================================
-# END-TO-END MACHINE LEARNING PROJECT IN R
-# Dataset: Heart Disease UCI (Cleveland Heart Disease Dataset)
-# Problem: Binary Classification - Predict presence of heart disease
-# Author: ML Project
-# =============================================================================
-
 # ── 1. LOAD LIBRARIES ─────────────────────────────────────────────────────────
-library(tidyverse)      # Data manipulation & ggplot2
-library(caret)          # ML workflow, train/test split, metrics
-library(randomForest)   # Random Forest algorithm
-library(corrplot)       # Correlation matrix visualization
-library(scales)         # Scale helpers for ggplot2
-library(gridExtra)      # Arrange multiple ggplot2 plots
-library(e1071)          # SVM & statistical functions
-library(pROC)           # ROC curve analysis
+library(tidyverse)      
+library(caret)          
+library(randomForest)   
+library(corrplot)       
+library(scales)        
+library(gridExtra)     
+library(e1071)          
+library(pROC)          
 
-set.seed(42)            # Reproducibility
+set.seed(42)            
 
-# Resolve the project directory whether the script is sourced from RStudio or
-# run from the command line.
+
 script_file <- commandArgs(trailingOnly = FALSE)
 script_file <- script_file[grepl("--file=", script_file)]
 script_path <- if (length(script_file) > 0) sub("^--file=", "", script_file[1]) else getwd()
 base_dir <- if (file.exists(script_path)) normalizePath(dirname(script_path)) else normalizePath(getwd())
 
-# =============================================================================
-# 2. DATASET DESCRIPTION
-# =============================================================================
-# The Cleveland Heart Disease dataset from the UCI ML Repository contains
-# 303 patient records with 14 attributes. The target variable indicates
-# whether a patient has heart disease (1) or not (0).
-#
-# Features:
-#   age     - Age in years
-#   sex     - Sex (1 = male, 0 = female)
-#   cp      - Chest pain type (0-3)
-#   trestbps- Resting blood pressure (mm Hg)
-#   chol    - Serum cholesterol (mg/dl)
-#   fbs     - Fasting blood sugar > 120 mg/dl (1 = true, 0 = false)
-#   restecg - Resting ECG results (0-2)
-#   thalach - Maximum heart rate achieved
-#   exang   - Exercise-induced angina (1 = yes, 0 = no)
-#   oldpeak - ST depression induced by exercise
-#   slope   - Slope of peak exercise ST segment (0-2)
-#   ca      - Number of major vessels colored by fluoroscopy (0-3)
-#   thal    - Thalassemia type (1 = normal, 2 = fixed defect, 3 = reversible)
-#   target  - Heart disease (1 = present, 0 = absent)
+#  DATA LOADING
 
-# =============================================================================
-# 3. DATA LOADING
-# =============================================================================
-
-# Fetch data directly from UCI ML Repository
 url <- "https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data"
 
 col_names <- c("age","sex","cp","trestbps","chol","fbs",
                "restecg","thalach","exang","oldpeak","slope","ca","thal","target")
 
-# Attempt download; fall back to synthetic data if offline
+#  synthetic data if data is not loaded
 heart_raw <- tryCatch({
   read.csv(url, header = FALSE, col.names = col_names, na.strings = "?")
 }, error = function(e) {
@@ -93,21 +59,18 @@ if (is.null(heart_raw)) {
 
 cat("✓ Data loaded:", nrow(heart_raw), "rows ×", ncol(heart_raw), "columns\n")
 
-# =============================================================================
-# 4. DATA PREPROCESSING
-# =============================================================================
+#  DATA PREPROCESSING
 
 heart <- heart_raw
 
-# 4a. Inspect missing values
-cat("\n── Missing Values ──────────────────────────────\n")
+#  Inspect missing values
 miss_summary <- colSums(is.na(heart))
 print(miss_summary[miss_summary > 0])
 
-# 4b. Binarize target (original has 0-4; >0 = disease present)
+#  Binarize target (original has 0-4; >0 = disease present)
 heart$target <- ifelse(heart$target > 0, 1, 0)
 
-# 4c. Impute missing values with median (robust to outliers)
+# Replace missing values with median
 for (col in names(heart)) {
   if (any(is.na(heart[[col]]))) {
     heart[[col]][is.na(heart[[col]])] <- median(heart[[col]], na.rm = TRUE)
@@ -115,7 +78,7 @@ for (col in names(heart)) {
   }
 }
 
-# 4d. Type conversion – factors for categorical variables
+#  conversion – factors for categorical variables
 heart <- heart %>%
   mutate(
     sex     = factor(sex,     levels=0:1, labels=c("Female","Male")),
@@ -128,7 +91,7 @@ heart <- heart %>%
     target  = factor(target,  levels=0:1, labels=c("No_Disease","Disease"))
   )
 
-# 4e. Scale numeric features (Z-score normalisation)
+#  Scale numeric features (Z-score normalisation)
 numeric_cols <- c("age","trestbps","chol","thalach","oldpeak")
 preproc_obj  <- preProcess(heart[, numeric_cols], method = c("center","scale"))
 heart_scaled <- predict(preproc_obj, heart)
@@ -138,11 +101,10 @@ cat("\n✓ Preprocessing complete. Final dimensions:", nrow(heart_scaled), "×",
 cat("  Target distribution:\n")
 print(table(heart_scaled$target))
 
-# =============================================================================
-# 5. EXPLORATORY DATA ANALYSIS (EDA)
-# =============================================================================
 
-# 5a. Summary statistics
+# 5. EXPLORATORY DATA ANALYSIS (EDA)
+
+#  Summary statistics
 cat("\n── Summary Statistics ──────────────────────────\n")
 print(summary(heart[, c("age","trestbps","chol","thalach","oldpeak","target")]))
 
@@ -156,7 +118,7 @@ theme_heart <- theme_minimal(base_size = 13) +
     panel.grid.minor= element_blank()
   )
 
-# 5b. Age distribution by disease
+# Age distribution by disease
 p1 <- ggplot(heart, aes(age, fill=target)) +
   geom_histogram(bins=25, colour="white", alpha=0.85, position="identity") +
   scale_fill_manual(values=c("#2ecc71","#e74c3c"), name="Heart Disease") +
@@ -164,7 +126,7 @@ p1 <- ggplot(heart, aes(age, fill=target)) +
        x="Age (years)", y="Count") +
   theme_heart
 
-# 5c. Chest pain type vs disease
+#  Chest pain type vs disease
 p2 <- ggplot(heart, aes(cp, fill=target)) +
   geom_bar(position="fill", colour="white", alpha=0.9) +
   scale_fill_manual(values=c("#2ecc71","#e74c3c"), name="Heart Disease") +
@@ -173,7 +135,7 @@ p2 <- ggplot(heart, aes(cp, fill=target)) +
        x="Chest Pain Type", y="Proportion") +
   theme_heart + theme(axis.text.x=element_text(angle=20, hjust=1))
 
-# 5d. Max heart rate vs age (coloured by disease)
+#  Max heart rate vs age 
 p3 <- ggplot(heart, aes(age, thalach, colour=target)) +
   geom_point(alpha=0.65, size=2) +
   geom_smooth(method="lm", se=FALSE, linewidth=1.2) +
@@ -182,7 +144,7 @@ p3 <- ggplot(heart, aes(age, thalach, colour=target)) +
        x="Age", y="Max Heart Rate (bpm)") +
   theme_heart
 
-# 5e. Cholesterol boxplot
+#  Cholesterol boxplot
 p4 <- ggplot(heart, aes(target, chol, fill=target)) +
   geom_boxplot(outlier.colour="#e74c3c", outlier.shape=21, alpha=0.8) +
   scale_fill_manual(values=c("#2ecc71","#e74c3c"), name="Heart Disease") +
@@ -190,14 +152,14 @@ p4 <- ggplot(heart, aes(target, chol, fill=target)) +
        x="Heart Disease", y="Serum Cholesterol (mg/dl)") +
   theme_heart + theme(legend.position="none")
 
-# 5f. Sex distribution
+#  Sex distribution
 p5 <- ggplot(heart, aes(sex, fill=target)) +
   geom_bar(position="dodge", colour="white", alpha=0.9) +
   scale_fill_manual(values=c("#2ecc71","#e74c3c"), name="Heart Disease") +
   labs(title="Disease by Sex", x="Sex", y="Count") +
   theme_heart
 
-# 5g. ST depression (oldpeak) density
+#   depression  density
 p6 <- ggplot(heart, aes(oldpeak, fill=target)) +
   geom_density(alpha=0.65) +
   scale_fill_manual(values=c("#2ecc71","#e74c3c"), name="Heart Disease") +
@@ -211,7 +173,7 @@ ggsave(file.path(base_dir, "eda_plots.png"), eda_grid,
        width=14, height=18, dpi=150)
 cat("✓ EDA plots saved\n")
 
-# 5h. Correlation heatmap (numeric only)
+#  Correlation heatmap 
 num_df <- heart %>%
   mutate(
     target_num = as.integer(target) - 1,
@@ -227,11 +189,10 @@ corrplot(cor(num_df), method="color", type="upper", addCoef.col="black",
 dev.off()
 cat("✓ Correlation plot saved\n")
 
-# =============================================================================
-# 6. MODEL BUILDING
-# =============================================================================
+#  MODEL BUILDING
 
-# 6a. Train / Test split (75% / 25%)
+
+#  Train / Test split (75% / 25%)
 train_idx <- createDataPartition(heart_scaled$target, p=0.75, list=FALSE)
 train_df  <- heart_scaled[ train_idx, ]
 test_df   <- heart_scaled[-train_idx, ]
@@ -240,7 +201,7 @@ cat("\n── Data split ──────────────────�
 cat("  Training set:", nrow(train_df), "rows\n")
 cat("  Test set    :", nrow(test_df),  "rows\n")
 
-# 6b. Cross-validation control (10-fold CV)
+#  Cross-validation control (10-fold CV)
 cv_ctrl <- trainControl(
   method          = "cv",
   number          = 10,
@@ -249,7 +210,7 @@ cv_ctrl <- trainControl(
   savePredictions = "final"
 )
 
-# 6c. ── RANDOM FOREST ──────────────────────────────────────────────────────
+#   RANDOM FOREST 
 cat("\n── Training Random Forest … ────────────────────\n")
 rf_grid <- expand.grid(mtry = c(2, 3, 4, 5))
 
@@ -266,7 +227,7 @@ rf_model <- train(
 cat("  Best mtry:", rf_model$bestTune$mtry, "\n")
 cat("  CV ROC:   ", max(rf_model$results$ROC) %>% round(4), "\n")
 
-# 6d. ── LOGISTIC REGRESSION (baseline) ───────────────────────────────────────
+#  LOGISTIC REGRESSION 
 cat("\n── Training Logistic Regression … ─────────────\n")
 lr_model <- train(
   target ~ .,
@@ -277,9 +238,8 @@ lr_model <- train(
   metric    = "ROC"
 )
 
-# =============================================================================
-# 7. MODEL EVALUATION
-# =============================================================================
+
+#  MODEL EVALUATION
 
 # Predictions
 rf_pred_class <- predict(rf_model, test_df)
@@ -330,7 +290,7 @@ ggsave(file.path(base_dir, "feature_importance.png"), p_imp,
        width=9, height=6, dpi=150)
 cat("\n✓ Feature importance plot saved\n")
 
-# Save ROC comparison
+# Save ROC 
 png(file.path(base_dir, "roc_curves.png"), width=800, height=650, res=120)
 plot(rf_roc, col="#c0392b", lwd=2.5, main="ROC Curves – Model Comparison")
 lines(lr_roc, col="#2980b9", lwd=2.5, lty=2)
@@ -341,9 +301,8 @@ legend("bottomright",
 dev.off()
 cat("✓ ROC curves plot saved\n")
 
-# =============================================================================
-# 8. SAVE ARTEFACTS FOR SHINY DASHBOARD
-# =============================================================================
+
+#  SAVE ARTEFACTS FOR SHINY DASHBOARD
 saveRDS(rf_model,    file.path(base_dir, "rf_model.rds"))
 saveRDS(preproc_obj, file.path(base_dir, "preproc_obj.rds"))
 saveRDS(heart,       file.path(base_dir, "heart_clean.rds"))
