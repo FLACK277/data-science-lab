@@ -1,8 +1,3 @@
-# =============================================================================
-# HEART DISEASE ML – INTERACTIVE SHINY DASHBOARD
-# Run: shiny::runApp("app.R")
-# =============================================================================
-
 library(shiny)
 library(shinydashboard)
 library(tidyverse)
@@ -13,7 +8,7 @@ library(scales)
 library(DT)
 library(plotly)
 
-# ── Load pre-computed artefacts ───────────────────────────────────────────────
+#  Loading pre-computed artefacts 
 script_file <- commandArgs(trailingOnly = FALSE)
 script_file <- script_file[grepl("--file=", script_file)]
 script_path <- if (length(script_file) > 0) sub("^--file=", "", script_file[1]) else "app.R"
@@ -23,7 +18,7 @@ preproc_obj <- readRDS(file.path(base_dir, "preproc_obj.rds"))
 heart       <- readRDS(file.path(base_dir, "heart_clean.rds"))
 metrics     <- readRDS(file.path(base_dir, "metrics_list.rds"))
 
-# ── Helper: metric value box ──────────────────────────────────────────────────
+
 metric_box <- function(value, label, icon_name, color) {
   valueBox(
     value  = sprintf("%.3f", value),
@@ -40,19 +35,18 @@ theme_dash <- theme_minimal(base_size = 13) +
     legend.position = "bottom"
   )
 
-# =============================================================================
+
 # UI
-# =============================================================================
 ui <- dashboardPage(
   skin = "red",
 
-  # ── Header ─────────────────────────────────────────────────────────────────
+  # Header
   dashboardHeader(
     title = tags$span(icon("heartbeat"), " Heart Disease ML"),
     titleWidth = 280
   ),
 
-  # ── Sidebar ────────────────────────────────────────────────────────────────
+  # Sidebar 
   dashboardSidebar(
     width = 240,
     sidebarMenu(
@@ -64,7 +58,7 @@ ui <- dashboardPage(
     )
   ),
 
-  # ── Body ───────────────────────────────────────────────────────────────────
+  #  Body 
   dashboardBody(
     tags$head(tags$style(HTML("
       .skin-red .main-header .navbar { background-color:#c0392b; }
@@ -78,7 +72,7 @@ ui <- dashboardPage(
 
     tabItems(
 
-      # ── TAB 1: OVERVIEW ────────────────────────────────────────────────────
+      #  TAB 1: OVERVIEW
       tabItem(tabName="overview",
         fluidRow(
           box(width=12, status="danger", solidHeader=TRUE,
@@ -107,7 +101,7 @@ ui <- dashboardPage(
         )
       ),
 
-      # ── TAB 2: EDA ─────────────────────────────────────────────────────────
+      #  TAB 2: EDA
       tabItem(tabName="eda",
         fluidRow(
           box(width=4, status="danger", title="EDA Controls",
@@ -130,7 +124,7 @@ ui <- dashboardPage(
         )
       ),
 
-      # ── TAB 3: MODEL RESULTS ───────────────────────────────────────────────
+      #  TAB 3: MODEL RESULTS
       tabItem(tabName="model",
         fluidRow(
           box(width=6, title="Confusion Matrix – Random Forest", status="danger",
@@ -144,7 +138,7 @@ ui <- dashboardPage(
         )
       ),
 
-      # ── TAB 4: LIVE PREDICTOR ──────────────────────────────────────────────
+      #  TAB 4: LIVE PREDICTOR
       tabItem(tabName="predictor",
         fluidRow(
           box(width=4, status="danger", solidHeader=TRUE,
@@ -180,7 +174,7 @@ ui <- dashboardPage(
         )
       ),
 
-      # ── TAB 5: DATASET ─────────────────────────────────────────────────────
+      #  TAB 5: DATASET 
       tabItem(tabName="data",
         fluidRow(
           box(width=12, title="Heart Disease Dataset (processed)", status="danger",
@@ -191,12 +185,10 @@ ui <- dashboardPage(
   )
 )
 
-# =============================================================================
 # SERVER
-# =============================================================================
 server <- function(input, output, session) {
 
-  # ── OVERVIEW ───────────────────────────────────────────────────────────────
+  #  OVERVIEW
   output$overviewTarget <- renderPlotly({
     df <- heart %>% count(target)
     plot_ly(df, labels=~target, values=~n, type="pie",
@@ -215,7 +207,7 @@ server <- function(input, output, session) {
              paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
   })
 
-  # ── EDA ────────────────────────────────────────────────────────────────────
+  #  EDA 
   output$edaPlot <- renderPlotly({
     xv  <- input$eda_x
     col <- if (input$eda_by_target) heart$target else NULL
@@ -262,7 +254,7 @@ server <- function(input, output, session) {
              paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
   })
 
-  # ── MODEL RESULTS ──────────────────────────────────────────────────────────
+  # MODEL RESULTS 
   output$cmPlot <- renderPlotly({
     cm_tbl <- readRDS(file.path(base_dir, "rf_cm.rds"))$table
     df <- as.data.frame(cm_tbl)
@@ -304,9 +296,9 @@ server <- function(input, output, session) {
              paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
   })
 
-  # ── LIVE PREDICTOR ─────────────────────────────────────────────────────────
+  #  LIVE PREDICTOR
   pred_result <- eventReactive(input$predict_btn, {
-    # Build a new patient row matching the original heart data structure
+    # Building a new patient row 
     new_patient <- data.frame(
       age      = input$p_age,
       sex      = factor(input$p_sex,    levels=c("Female","Male")),
@@ -409,7 +401,7 @@ server <- function(input, output, session) {
     cat("═══════════════════════════════════════\n")
   })
 
-  # ── DATASET TABLE ──────────────────────────────────────────────────────────
+  #  DATASET TABLE 
   output$dataTable <- renderDT({
     datatable(heart,
               options  = list(pageLength=15, scrollX=TRUE,
@@ -423,7 +415,6 @@ server <- function(input, output, session) {
   })
 }
 
-# =============================================================================
+
 # RUN
-# =============================================================================
 shinyApp(ui=ui, server=server)
